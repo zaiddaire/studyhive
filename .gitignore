@@ -1,0 +1,28 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.jks
+*.key
+
+# Build output
+backend/target/
+frontend/dist/
+frontend/coverage/
+*.log
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Machine-local tool configuration
+.claude/

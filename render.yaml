@@ -1,0 +1,45 @@
+# Render Blueprint for the StudyHive API on Render's free plan.
+# Render: New + -> Blueprint -> select this repository. Secrets marked "sync: false" are entered in the dashboard.
+services:
+  - type: web
+    name: studyhive-api
+    runtime: docker
+    plan: free
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /actuator/health
+    autoDeploy: true
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: APP_TIME_ZONE
+        value: Asia/Kolkata
+      - key: DB_SSL_MODE
+        value: VERIFY_CA
+      - key: DB_POOL_SIZE
+        value: "3"
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: COOKIE_SAME_SITE
+        value: Lax
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_SSL_CA_PEM
+        sync: false
+      - key: FRONTEND_ORIGIN
+        sync: false
+      - key: PUBLIC_APP_URL
+        sync: false
+      - key: ADMIN_BOOTSTRAP_EMAIL
+        sync: false
+      - key: ADMIN_BOOTSTRAP_PASSWORD
+        sync: false

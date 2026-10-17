@@ -1,0 +1,50 @@
+# Local development stack.
+#   docker compose up -d mysql            -> MySQL only (run the API with Maven and the web app with Vite)
+#   docker compose --profile app up -d    -> MySQL + the Spring Boot API in a container
+# Values come from .env (copy .env.example). Never put production credentials here.
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: studyhive-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-studyhive}
+      MYSQL_USER: ${DB_USERNAME:-studyhive}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+      TZ: UTC
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    volumes:
+      - studyhive-mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  api:
+    profiles: ["app"]
+    build: ./backend
+    container_name: studyhive-api
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-studyhive}
+      DB_USERNAME: ${DB_USERNAME:-studyhive}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_SSL_MODE: PREFERRED
+      DB_ALLOW_PUBLIC_KEY_RETRIEVAL: "true"
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:5173}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:5173}
+      APP_TIME_ZONE: ${APP_TIME_ZONE:-Asia/Kolkata}
+      ADMIN_BOOTSTRAP_EMAIL: ${ADMIN_BOOTSTRAP_EMAIL:-}
+      ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:-}
+    ports:
+      - "8080:8080"
+
+volumes:
+  studyhive-mysql:

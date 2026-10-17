@@ -1,0 +1,152 @@
+@import 'tailwindcss';
+@import '@fontsource/dm-serif-display/400.css';
+@import '@fontsource/dm-serif-display/400-italic.css';
+@import '@fontsource-variable/inter';
+
+/*
+ * StudyHive design tokens. Light theme only.
+ * Text colours were checked for WCAG AA on the canvas and card backgrounds:
+ *  - ink (#252923) ~14:1, muted (#666A62) ~5.3:1, sage-deep (#435B47) ~7:1.
+ *  - Brand sage (#708A72) and champagne (#C6A878) are used for accents, icons and large text only.
+ */
+@theme {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-serif: 'DM Serif Display', ui-serif, Georgia, serif;
+
+  --color-canvas: #faf9f6;
+  --color-card: #ffffff;
+  --color-sage-50: #f3f6f1;
+  --color-sage-100: #e7ede4;
+  --color-sage-200: #d3ddcf;
+  --color-sage-400: #8fa590;
+  --color-sage-500: #708a72;
+  --color-sage-700: #435b47;
+  --color-sage-800: #364a3a;
+  --color-sage-900: #263428;
+  --color-champagne-100: #f4ecdf;
+  --color-champagne-400: #c6a878;
+  --color-champagne-600: #8f7346;
+  --color-ink: #252923;
+  --color-muted: #666a62;
+  --color-subtle: #777b73;
+  --color-line: #e7e6df;
+  --color-line-strong: #d6d4ca;
+
+  --color-success: #2e7d4f;
+  --color-success-soft: #e6f2ea;
+  --color-danger: #b42318;
+  --color-danger-soft: #fdecea;
+  --color-warning: #a15c07;
+  --color-warning-soft: #fdf3e2;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  --shadow-soft: 0 1px 2px rgb(37 41 35 / 0.04), 0 4px 16px -6px rgb(37 41 35 / 0.08);
+  --shadow-lift: 0 2px 4px rgb(37 41 35 / 0.04), 0 18px 40px -16px rgb(37 41 35 / 0.18);
+  --shadow-panel: 0 24px 60px -24px rgb(38 52 40 / 0.28);
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-canvas text-ink font-sans antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+    text-rendering: optimizeLegibility;
+  }
+  h1, h2, h3, h4 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  ::selection {
+    background: var(--color-sage-200);
+    color: var(--color-ink);
+  }
+  :focus-visible {
+    outline: 2.5px solid var(--color-sage-700);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+}
+
+@layer components {
+  .container-page {
+    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+  .eyebrow {
+    @apply text-xs font-semibold uppercase tracking-[0.18em] text-sage-700;
+  }
+  .display {
+    @apply font-serif font-normal tracking-[-0.01em] text-ink;
+  }
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .hairline {
+    @apply border-line;
+  }
+  /* Diagonal hatching so "booked" never relies on colour alone */
+  .hatched {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      rgb(37 41 35 / 0.06) 0 6px,
+      transparent 6px 12px
+    );
+  }
+  .honeycomb-bg {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='98' viewBox='0 0 56 98'%3E%3Cpath d='M28 66 0 50V17L28 1l28 16v33L28 66Zm0 32L0 82V66l28 16 28-16v16L28 98Z' fill='none' stroke='%23435B47' stroke-opacity='.07'/%3E%3C/svg%3E");
+  }
+}
+
+/* react-day-picker theming */
+.rdp-root {
+  --rdp-accent-color: var(--color-sage-700);
+  --rdp-accent-background-color: var(--color-sage-100);
+  --rdp-day-height: 40px;
+  --rdp-day-width: 40px;
+  --rdp-day_button-height: 38px;
+  --rdp-day_button-width: 38px;
+  --rdp-day_button-border-radius: 10px;
+  --rdp-selected-border: 2px solid var(--color-sage-700);
+  --rdp-today-color: var(--color-champagne-600);
+  --rdp-font-family: var(--font-sans);
+  font-size: 0.875rem;
+}
+.rdp-root .rdp-selected .rdp-day_button {
+  background: var(--color-sage-700);
+  color: #fff;
+  font-weight: 600;
+}
+.rdp-root .rdp-disabled {
+  opacity: 0.35;
+}
+.rdp-root .rdp-caption_label {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: 1.15rem;
+}

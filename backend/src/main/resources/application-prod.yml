@@ -1,0 +1,23 @@
+# Production profile (Railway + Aiven MySQL). Activate with SPRING_PROFILES_ACTIVE=prod.
+spring:
+  datasource:
+    # Aiven requires TLS. VERIFY_CA validates the server certificate against the Aiven CA supplied in DB_SSL_CA_PEM.
+    url: ${DB_URL:jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?sslMode=${DB_SSL_MODE:VERIFY_CA}&trustCertificateKeyStoreUrl=${DB_TRUSTSTORE_URL:}&trustCertificateKeyStorePassword=${DB_TRUSTSTORE_PASSWORD:}}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+server:
+  servlet:
+    session:
+      cookie:
+        secure: ${COOKIE_SECURE:true}
+
+app:
+  security:
+    csrf-cookie-secure: ${COOKIE_SECURE:true}
+
+springdoc:
+  api-docs:
+    enabled: ${API_DOCS_ENABLED:false}
+  swagger-ui:
+    enabled: ${API_DOCS_ENABLED:false}
