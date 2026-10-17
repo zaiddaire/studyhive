@@ -38,8 +38,100 @@ export class ApiError extends Error {
 let csrfToken: string | null = null
 let csrfRequest: Promise<string> | null = null
 
+// ---- Cold starts on free hosting ----------------------------------------------------------------
+// The free API host sleeps after ~15 idle minutes and takes 1-3 minutes to boot. While it boots the
+// proxy either holds the request open or answers 502/503/504 (or the connection fails). Read requests
+// wait it out instead of failing, a "waking up" notice is shown, and state-changing requests first wake
+// the server with a GET so they never hit a sleeping instance.
+
+const wakeTiming = {
+  /** Total time a GET keeps retrying through a cold start. */
+  budgetMs: import.meta.env.MODE === 'test' ? 0 : 200_000,
+  /** Pause between attempts. */
+  retryMs: 4_000,
+  /** A request still unanswered after this long is treated as "the server is waking up". */
+  slowMs: 6_000,
+  /** After this much silence the server may be asleep, so mutations wake it first. */
+  idleMs: 10 * 60_000,
+}
+
+/** Test hook: shorten or disable the cold-start waits. */
+export function setWakeTiming(timing: Partial<typeof wakeTiming>) {
+  Object.assign(wakeTiming, timing)
+}
+
+const wakeListeners = new Set<(waking: boolean) => void>()
+let waking = false
+let lastContactAt = 0
+
+function setWaking(value: boolean) {
+  if (waking === value) return
+  waking = value
+  wakeListeners.forEach((listener) => listener(value))
+}
+
+/** Subscribe to "the server is waking up" changes; returns an unsubscribe function. */
+export function onServerWaking(listener: (waking: boolean) => void): () => void {
+  wakeListeners.add(listener)
+  listener(waking)
+  return () => {
+    wakeListeners.delete(listener)
+  }
+}
+
+/** Test hook: pretend the last successful contact with the API happened at this time. */
+export function markLastApiContact(at: number) {
+  lastContactAt = at
+}
+
+function sleep(ms: number, signal?: AbortSignal | null) {
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(resolve, ms)
+    signal?.addEventListener('abort', () => {
+      clearTimeout(timer)
+      reject(new DOMException('Aborted', 'AbortError'))
+    })
+  })
+}
+
+const isColdStartStatus = (status: number) => status === 502 || status === 503 || status === 504
+
+/** fetch that waits through an API cold start. Only idempotent requests are retried. */
+async function fetchWaking(url: string, init: RequestInit, retryable: boolean): Promise<Response> {
+  const started = Date.now()
+  for (;;) {
+    const slowTimer = setTimeout(() => setWaking(true), wakeTiming.slowMs)
+    try {
+      const response = await fetch(url, init)
+      clearTimeout(slowTimer)
+      const withinBudget = Date.now() - started < wakeTiming.budgetMs
+      if (!(retryable && isColdStartStatus(response.status) && withinBudget)) {
+        if (!isColdStartStatus(response.status)) {
+          lastContactAt = Date.now()
+          setWaking(false)
+        }
+        return response
+      }
+    } catch (error) {
+      clearTimeout(slowTimer)
+      const aborted = error instanceof DOMException && error.name === 'AbortError'
+      if (aborted || !retryable || Date.now() - started >= wakeTiming.budgetMs) {
+        if (!aborted) setWaking(false)
+        throw error
+      }
+    }
+    setWaking(true)
+    await sleep(wakeTiming.retryMs, init.signal)
+  }
+}
+
 async function fetchCsrfToken(): Promise<string> {
-  const response = await fetch(`${API_BASE}/api/auth/csrf`, { credentials: 'include', headers: { Accept: 'application/json' } })
+  let response: Response
+  try {
+    response = await fetchWaking(`${API_BASE}/api/auth/csrf`, { credentials: 'include', headers: { Accept: 'application/json' } }, true)
+  } catch {
+    throw new ApiError(0, 'NETWORK_ERROR', "We couldn't reach StudyHive. Check your internet connection and try again.")
+  }
   if (!response.ok) {
     throw new ApiError(response.status, 'CSRF_UNAVAILABLE', 'Could not start a secure session. Please refresh the page.')
   }
@@ -101,8 +193,10 @@ async function toApiError(response: Response): Promise<ApiError> {
         ? 'You do not have permission to do that.'
         : response.status === 404
           ? 'We could not find what you were looking for.'
-          : response.status >= 500
-            ? 'StudyHive is having trouble right now. Please try again in a moment.'
+          : isColdStartStatus(response.status)
+            ? 'StudyHive is still waking up. Please try again in a minute.'
+            : response.status >= 500
+              ? 'StudyHive is having trouble right now. Please try again in a moment.'
             : 'Something went wrong. Please try again.'
   return new ApiError(
     response.status,
@@ -118,18 +212,27 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}, 
   const headers: Record<string, string> = { Accept: 'application/json' }
   const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData
   if (options.body !== undefined && !isFormData) headers['Content-Type'] = 'application/json'
-  if (method !== 'GET') headers['X-XSRF-TOKEN'] = await getCsrfToken()
+  if (method !== 'GET') {
+    // If the API has been quiet long enough to fall asleep, wake it with a (retried) GET first, so a
+    // login or booking never times out against a sleeping server.
+    const mayBeAsleep = Date.now() - lastContactAt > wakeTiming.idleMs
+    headers['X-XSRF-TOKEN'] = await getCsrfToken(mayBeAsleep)
+  }
   if (options.idempotencyKey) headers['Idempotency-Key'] = options.idempotencyKey
 
   let response: Response
   try {
-    response = await fetch(`${API_BASE}${path}${buildQuery(options.query)}`, {
-      method,
-      credentials: 'include',
-      headers,
-      signal: options.signal,
-      body: options.body === undefined ? undefined : isFormData ? (options.body as FormData) : JSON.stringify(options.body),
-    })
+    response = await fetchWaking(
+      `${API_BASE}${path}${buildQuery(options.query)}`,
+      {
+        method,
+        credentials: 'include',
+        headers,
+        signal: options.signal,
+        body: options.body === undefined ? undefined : isFormData ? (options.body as FormData) : JSON.stringify(options.body),
+      },
+      method === 'GET',
+    )
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') throw error
     throw new ApiError(0, 'NETWORK_ERROR', "We couldn't reach StudyHive. Check your internet connection and try again.")
@@ -148,22 +251,22 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}, 
   return (text ? JSON.parse(text) : undefined) as T
 }
 
-/**
- * Free hosting plans put the API to sleep when idle; while it wakes up the proxy answers 502/503/504 or the
- * connection fails. Those are retried patiently (about 3 minutes, enough for a cold start on a 0.1 CPU free
- * instance); other 5xx errors briefly; client errors never.
- */
 export function isWakeUpError(error: unknown): boolean {
-  return error instanceof ApiError && (error.status === 0 || error.status === 502 || error.status === 503 || error.status === 504)
+  return error instanceof ApiError && (error.status === 0 || isColdStartStatus(error.status))
 }
 
+/**
+ * Query retry policy. Cold starts are already waited out inside fetchWaking, so they aren't retried again
+ * here (that would double the wait). Client errors are never retried; other server errors retry briefly.
+ */
 export function shouldRetry(failureCount: number, error: unknown): boolean {
   if (error instanceof ApiError && error.status >= 400 && error.status < 500) return false
-  return isWakeUpError(error) ? failureCount < 36 : failureCount < 2
+  if (isWakeUpError(error)) return false
+  return failureCount < 2
 }
 
-export function retryDelay(attempt: number, error: unknown): number {
-  return isWakeUpError(error) ? 5000 : Math.min(1000 * 2 ** attempt, 8000)
+export function retryDelay(attempt: number): number {
+  return Math.min(1000 * 2 ** attempt, 8000)
 }
 
 /** Resolves relative asset URLs (uploaded images are served by the API) against the API base. */

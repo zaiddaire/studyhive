@@ -146,9 +146,9 @@ never touch a shared or production database.
 | Backend: integration tests on MySQL (auth, CSRF browser flow, rooms, availability, bookings, admin, migrations) | 49 passed |
 | Backend: concurrency (12 overlapping requests, 10 identical requests, 5 parallel rooms, 5 duplicate submissions) | 4 passed |
 | **Backend total** | **81 passed, 0 failed** |
-| Frontend: logic, API client (incl. retry policy), schemas | 20 passed |
+| Frontend: logic, API client (incl. cold-start waits), schemas | 25 passed |
 | Frontend: components (login/register, slot grid, room card, room filters, booking flow incl. 409 and offline, dashboard + cancel) | 17 passed |
-| **Frontend total** | **37 passed, 0 failed** |
+| **Frontend total** | **42 passed, 0 failed** |
 
 The full student and admin journeys were also exercised manually in a browser against the real API and MySQL
 (sign up → search → book → conflicting booking by a second student → 409 handled → cancel → admin console), at 1440 px and 390 px widths.
