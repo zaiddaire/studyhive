@@ -185,9 +185,16 @@ you sign up; they change over time. You need a GitHub account with this project 
    Check `https://<your-service>.onrender.com/actuator/health`; it should return `{"status":"UP",...}`.
 4. Log in once as the admin, then **delete `ADMIN_BOOTSTRAP_PASSWORD`** from Render.
 
-**Free-plan behaviour:** the service sleeps after a period without traffic, and the next request takes about a minute
-while it wakes. The web app shows a "Waking up StudyHive…" notice and retries automatically. Sessions are stored in
-MySQL, so users stay signed in across restarts. For a live demo, open the site a minute early.
+**Free-plan behaviour (measured):** the service sleeps after a period without traffic. In a rehearsal with Render's
+free limits (0.1 CPU, 512 MB) the production image used about 310 MB of memory and started in about **115 seconds**.
+That's with the Class Data Sharing archive built into the Dockerfile; without it, start-up took 342 seconds. While it
+wakes, the web app shows a "Waking up StudyHive…" notice and keeps retrying for up to three minutes. Sessions are stored
+in MySQL, so users stay signed in across restarts.
+
+**Optional: keep it awake (no cold starts).** Point a free uptime monitor (for example UptimeRobot or cron-job.org) at
+`https://<your-service>.onrender.com/actuator/health` every 10 minutes. One always-on service fits within Render's
+monthly free instance hours. Check Render's current free-tier terms before relying on this. For a demo without a
+monitor, open the site two minutes early.
 
 ### 3. Frontend: Vercel (Hobby)
 

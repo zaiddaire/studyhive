@@ -29,7 +29,7 @@ export function ServerWakeNotice() {
           <LogoMark className="size-7 shrink-0 animate-spin [animation-duration:2.4s]" />
           <p className="text-sm">
             <span className="font-semibold">Waking up StudyHive…</span>
-            <span className="block text-xs text-muted">The server sleeps when idle on the free plan. This can take up to a minute.</span>
+            <span className="block text-xs text-muted">The server sleeps when idle on the free plan. Waking it can take a minute or two.</span>
           </p>
         </motion.div>
       )}

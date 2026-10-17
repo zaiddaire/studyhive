@@ -150,7 +150,8 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}, 
 
 /**
  * Free hosting plans put the API to sleep when idle; while it wakes up the proxy answers 502/503/504 or the
- * connection fails. Those are retried patiently (~40 s); other 5xx errors briefly; client errors never.
+ * connection fails. Those are retried patiently (about 3 minutes, enough for a cold start on a 0.1 CPU free
+ * instance); other 5xx errors briefly; client errors never.
  */
 export function isWakeUpError(error: unknown): boolean {
   return error instanceof ApiError && (error.status === 0 || error.status === 502 || error.status === 503 || error.status === 504)
@@ -158,11 +159,11 @@ export function isWakeUpError(error: unknown): boolean {
 
 export function shouldRetry(failureCount: number, error: unknown): boolean {
   if (error instanceof ApiError && error.status >= 400 && error.status < 500) return false
-  return isWakeUpError(error) ? failureCount < 10 : failureCount < 2
+  return isWakeUpError(error) ? failureCount < 36 : failureCount < 2
 }
 
 export function retryDelay(attempt: number, error: unknown): number {
-  return isWakeUpError(error) ? 4000 : Math.min(1000 * 2 ** attempt, 8000)
+  return isWakeUpError(error) ? 5000 : Math.min(1000 * 2 ** attempt, 8000)
 }
 
 /** Resolves relative asset URLs (uploaded images are served by the API) against the API base. */
