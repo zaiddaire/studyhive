@@ -15,10 +15,10 @@ These are already prepared in the repository:
   and includes a Class Data Sharing archive for faster cold starts.
 * `render.yaml` is an optional Render Blueprint with the same settings as the manual steps below.
 * `frontend/vercel.json` forwards `/api/*` to Render, serves `index.html` for page routes, and adds security headers.
-* `.github/workflows/keep-alive.yml` pings the API every 10 minutes so it never sleeps.
+* `.github/workflows/keep-alive.yml` is a backup pinger for 07:00–23:59 IST (see *Keeping it awake* below).
 * `.gitignore` keeps `.env` files, passwords, builds and test reports out of git.
 
-Free-tier limits change, so check each provider's current terms. Without the keep-alive, the Render API **sleeps
+Free-tier limits change, so check each provider's current terms. Without a keep-alive pinger, the Render API **sleeps
 after ~15 minutes without traffic**. In a rehearsal with Render's free limits (0.1 CPU, 512 MB) a cold start took
 about 2 minutes, and the site shows a "Waking up StudyHive…" notice while it waits.
 
@@ -124,6 +124,24 @@ You don't need to create any tables. The API creates them on its first start (5 
 | Refreshing a page like `/rooms/3` shows 404 | `frontend/vercel.json` wasn't deployed. Make sure the Root Directory is `frontend`. |
 | Admin can't sign in | The bootstrap password had to be 12–64 characters with letters and numbers, and an account with that email mustn't already exist. Check the Render log for "Admin bootstrap". |
 | Keep-alive workflow shows "skipping" | `API_URL` in `.github/workflows/keep-alive.yml` still has the placeholder. |
+
+## Keeping it awake (free plan)
+
+Render's free services sleep after ~15 minutes without traffic, and every free service in a Render workspace shares
+**750 instance hours a month**. One service kept awake around the clock uses ~744 hours, so two can't both stay up
+24/7 without Render suspending them partway through the month.
+
+StudyHive is kept awake **07:00–23:59 IST (~530 hours/month)**:
+
+* **Primary:** a free [cron-job.org](https://cron-job.org) job requests `https://YOUR-RENDER-URL/actuator/health` every
+  10 minutes from 07:00 to 23:50, time zone Asia/Kolkata. cron-job.org runs on time; the health check also touches
+  the database, which keeps Aiven's free MySQL from powering off.
+* **Backup:** `.github/workflows/keep-alive.yml` pings during the same window. GitHub delays scheduled workflows
+  (often to every ~30 minutes), so on its own it can't keep Render awake.
+* **Outside the window** the API sleeps. The first visitor sees a "Waking up StudyHive…" notice for up to 2–3 minutes,
+  and the page then loads by itself. Logging in and booking also wait for the server instead of failing.
+
+Check usage under **Render → Billing → Free Instance Hours**.
 
 ## Taking it down
 

@@ -178,8 +178,8 @@ environment variables, the keep-alive workflow and troubleshooting.
 
 Measured in a rehearsal with Render's free limits (0.1 CPU, 512 MB): the production image uses about 310 MB of memory
 and starts in about 115 seconds. That's with the Class Data Sharing archive built into the Dockerfile; without it,
-start-up took 342 seconds. `.github/workflows/keep-alive.yml` pings the API every 10 minutes (free on public
-repositories) so visitors don't hit cold starts. If it does sleep, the site shows a "Waking up StudyHive…" notice and
+start-up took 342 seconds. A cron-job.org job (with `.github/workflows/keep-alive.yml` as backup) keeps the API awake 07:00–23:59 IST,
+within Render's 750 free hours a month. If it does sleep, the site shows a "Waking up StudyHive…" notice and
 retries for up to three minutes.
 
 `backend/railway.json` is included as a paid alternative to Render.
