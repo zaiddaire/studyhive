@@ -1,5 +1,6 @@
-# Backup keep-alive for the free Render API (the primary pinger is a cron-job.org job, which runs on time;
-# GitHub delays scheduled workflows, often to every ~30 minutes, so this alone can't keep Render awake).
+# Keep-alive for the free Render API: pings /actuator/health every 10 minutes, which also keeps the Aiven
+# database from powering off. GitHub can run scheduled workflows late, so a slow first load is still possible;
+# for punctual pings, add a free cron-job.org job with the same URL and hours (see docs/DEPLOYMENT.md).
 #
 # Render free services sleep after ~15 minutes without traffic, and all free services in a workspace share
 # 750 instance hours a month. StudyHive is kept awake only from 07:00 to 23:59 IST (~530 hours/month); outside

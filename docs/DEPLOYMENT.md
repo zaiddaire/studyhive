@@ -15,7 +15,7 @@ These are already prepared in the repository:
   and includes a Class Data Sharing archive for faster cold starts.
 * `render.yaml` is an optional Render Blueprint with the same settings as the manual steps below.
 * `frontend/vercel.json` forwards `/api/*` to Render, serves `index.html` for page routes, and adds security headers.
-* `.github/workflows/keep-alive.yml` is a backup pinger for 07:00–23:59 IST (see *Keeping it awake* below).
+* `.github/workflows/keep-alive.yml` pings the API every 10 minutes from 07:00 to 23:59 IST (see *Keeping it awake*).
 * `.gitignore` keeps `.env` files, passwords, builds and test reports out of git.
 
 Free-tier limits change, so check each provider's current terms. Without a keep-alive pinger, the Render API **sleeps
@@ -133,11 +133,11 @@ Render's free services sleep after ~15 minutes without traffic, and every free s
 
 StudyHive is kept awake **07:00–23:59 IST (~530 hours/month)**:
 
-* **Primary:** a free [cron-job.org](https://cron-job.org) job requests `https://YOUR-RENDER-URL/actuator/health` every
-  10 minutes from 07:00 to 23:50, time zone Asia/Kolkata. cron-job.org runs on time; the health check also touches
-  the database, which keeps Aiven's free MySQL from powering off.
-* **Backup:** `.github/workflows/keep-alive.yml` pings during the same window. GitHub delays scheduled workflows
-  (often to every ~30 minutes), so on its own it can't keep Render awake.
+* `.github/workflows/keep-alive.yml` requests `https://YOUR-RENDER-URL/actuator/health` every 10 minutes during that
+  window. The health check also touches the database, which keeps Aiven's free MySQL from powering off.
+* GitHub can run scheduled workflows late (sometimes ~30 minutes apart), so the API can occasionally fall asleep
+  between pings. For punctual pings, optionally add a free [cron-job.org](https://cron-job.org) job: the same URL,
+  every 10 minutes, hours 7–23, time zone Asia/Kolkata.
 * **Outside the window** the API sleeps. The first visitor sees a "Waking up StudyHive…" notice for up to 2–3 minutes,
   and the page then loads by itself. Logging in and booking also wait for the server instead of failing.
 
