@@ -2,6 +2,9 @@
 
 **Your group. Your space. Your goals.**
 
+**Live demo:** https://studyhive-psi.vercel.app · API health: https://studyhive-api-lmsy.onrender.com/actuator/health
+(free hosting: the API may take a minute to wake if it has been idle)
+
 StudyHive is a full-stack group study room booking platform. Students find private study rooms (typically for 6–8 people),
 check live availability, and reserve the **whole room** for their group for a time slot. Administrators manage rooms,
 opening hours, maintenance blocks, bookings and users.
@@ -92,7 +95,8 @@ Start the API with the variables from `.env` (Flyway creates the schema and the 
 In PowerShell:
 
 ```bash
-.\scriptsun-backend.ps1
+.\scripts
+un-backend.ps1
 ```
 
 Or in Git Bash, macOS or Linux:

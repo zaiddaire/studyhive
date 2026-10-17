@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 env:
-  API_URL: https://YOUR-API-SERVICE.onrender.com
+  API_URL: https://studyhive-api-lmsy.onrender.com
 
 jobs:
   ping:
