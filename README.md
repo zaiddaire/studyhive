@@ -88,10 +88,17 @@ Edit `.env`: set `DB_PASSWORD`, `MYSQL_ROOT_PASSWORD`, and optionally `ADMIN_BOO
 docker compose up -d mysql
 ```
 
-Start the API (Flyway creates the schema and the sample rooms on first start):
+Start the API with the variables from `.env` (Flyway creates the schema and the sample rooms on first start).
+In PowerShell:
 
 ```bash
-cd backend && set -a && . ../.env && set +a && DB_ALLOW_PUBLIC_KEY_RETRIEVAL=true mvn spring-boot:run
+.\scriptsun-backend.ps1
+```
+
+Or in Git Bash, macOS or Linux:
+
+```bash
+./scripts/run-backend.sh
 ```
 
 In another terminal, start the web app (Vite proxies `/api` to `http://localhost:8080`):
@@ -142,82 +149,36 @@ never touch a shared or production database.
 The full student and admin journeys were also exercised manually in a browser against the real API and MySQL
 (sign up → search → book → conflicting booking by a second student → 409 handled → cancel → admin console), at 1440 px and 390 px widths.
 
+**Live race test** against any running API (local or deployed). It registers 8 throwaway students who all try to
+book overlapping times at the same moment, checks that only non-overlapping requests win and that the rest get 409,
+then cancels everything it created:
+
+```bash
+python scripts/live-race-test.py http://localhost:8080 2
+```
+
+Last local run: 2 back-to-back winners, 6 conflicts, no overlap, privacy check passed.
+
 CI (`.github/workflows/ci.yml`) runs both suites on every push and pull request.
 
 ---
 
 ## Deploy for free (Aiven + Render + Vercel)
 
-All three services have free plans suitable for a student project. Check each provider's current limits and terms before
-you sign up; they change over time. You need a GitHub account with this project pushed to a repository.
+```
+Browser ──▶ Vercel (React) ──/api/* forwarded──▶ Render (Spring Boot, Docker) ──TLS──▶ Aiven (MySQL)
+```
 
-### 1. Database: Aiven MySQL (free plan)
+Step-by-step guide: **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**, which covers GitHub, Aiven, Render and Vercel, the
+environment variables, the keep-alive workflow and troubleshooting.
 
-1. Create an Aiven account, then **Create service → MySQL → Free plan**. Choose a region close to your users.
-2. When the service is running, open **Overview → Connection information** and note **Host**, **Port**, **User**
-   (`avnadmin`), **Password** and **Database name** (`defaultdb`).
-3. Download the **CA certificate** (`ca.pem`). You'll paste its contents into `DB_SSL_CA_PEM`.
-4. Leave TLS on. StudyHive connects with `sslMode=VERIFY_CA` and verifies the server against that CA. Do not switch it off.
+Measured in a rehearsal with Render's free limits (0.1 CPU, 512 MB): the production image uses about 310 MB of memory
+and starts in about 115 seconds. That's with the Class Data Sharing archive built into the Dockerfile; without it,
+start-up took 342 seconds. `.github/workflows/keep-alive.yml` pings the API every 10 minutes (free on public
+repositories) so visitors don't hit cold starts. If it does sleep, the site shows a "Waking up StudyHive…" notice and
+retries for up to three minutes.
 
-**Backups:** check your plan's backup and point-in-time recovery options. For a free plan, also export periodically
-(`mysqldump --single-transaction --set-gtid-purged=OFF ...`) and keep the dump somewhere safe.
-
-### 2. API: Render (free web service, Docker)
-
-1. In Render: **New → Web Service → Build and deploy from a Git repository**, and pick your repository.
-   - **Root Directory:** `backend` · **Runtime/Language:** Docker · **Instance type:** Free
-   - **Health Check Path:** `/actuator/health`
-   - Or use **New → Blueprint**, which reads `render.yaml` from the repository root.
-2. Add environment variables (see `backend/.env.example` for all of them):
-
-   | Key | Value |
-   |---|---|
-   | `SPRING_PROFILES_ACTIVE` | `prod` |
-   | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD` | from Aiven |
-   | `DB_SSL_MODE` | `VERIFY_CA` |
-   | `DB_SSL_CA_PEM` | full contents of `ca.pem` (or its base64) |
-   | `DB_POOL_SIZE` | `3` |
-   | `FRONTEND_ORIGIN`, `PUBLIC_APP_URL` | your Vercel URL, e.g. `https://studyhive.vercel.app` (add it after step 3, then redeploy) |
-   | `APP_TIME_ZONE` | `Asia/Kolkata` |
-   | `ADMIN_BOOTSTRAP_EMAIL`, `ADMIN_BOOTSTRAP_PASSWORD` | your first admin (strong, unique password) |
-
-3. Deploy. The logs should show Flyway applying 5 migrations, then `Started StudyHiveApplication`.
-   Check `https://<your-service>.onrender.com/actuator/health`; it should return `{"status":"UP",...}`.
-4. Log in once as the admin, then **delete `ADMIN_BOOTSTRAP_PASSWORD`** from Render.
-
-**Free-plan behaviour (measured):** the service sleeps after a period without traffic. In a rehearsal with Render's
-free limits (0.1 CPU, 512 MB) the production image used about 310 MB of memory and started in about **115 seconds**.
-That's with the Class Data Sharing archive built into the Dockerfile; without it, start-up took 342 seconds. While it
-wakes, the web app shows a "Waking up StudyHive…" notice and keeps retrying for up to three minutes. Sessions are stored
-in MySQL, so users stay signed in across restarts.
-
-**Optional: keep it awake (no cold starts).** Point a free uptime monitor (for example UptimeRobot or cron-job.org) at
-`https://<your-service>.onrender.com/actuator/health` every 10 minutes. One always-on service fits within Render's
-monthly free instance hours. Check Render's current free-tier terms before relying on this. For a demo without a
-monitor, open the site two minutes early.
-
-### 3. Frontend: Vercel (Hobby)
-
-1. In `frontend/vercel.json`, replace `YOUR-API-SERVICE.onrender.com` with your Render host name and commit.
-2. In Vercel: **Add New → Project →** import the repository.
-   - **Root Directory:** `frontend` · Framework preset: Vite (detected) · Build: `npm run build` · Output: `dist`
-   - Environment variables: leave `VITE_API_BASE_URL` empty. `VITE_SUPPORT_EMAIL` is optional.
-3. Deploy, then copy the production URL into Render's `FRONTEND_ORIGIN` and `PUBLIC_APP_URL` and redeploy the API.
-
-**Why the rewrite?** Browsers increasingly block third-party cookies. Proxying `/api` through the Vercel domain keeps the
-session and CSRF cookies first-party, so login works in every browser. It also means no CORS configuration is needed.
-
-### 4. Verify the live site
-
-- Home page loads rooms; `/rooms` shows availability after picking a date.
-- Sign up, book a slot, see it on the dashboard, cancel it.
-- Log in as admin → `/admin` shows live figures.
-- Refresh a deep link such as `/rooms/2`; it should load (the SPA fallback is in `vercel.json`).
-
-### Paid alternative: Railway
-
-`backend/railway.json` builds the same Dockerfile with a health check. Set the same variables. Railway provides `PORT`
-automatically. Point the Vercel rewrite at `https://<service>.up.railway.app`.
+`backend/railway.json` is included as a paid alternative to Render.
 
 ---
 
@@ -255,36 +216,8 @@ promoted, and it refuses weak passwords.
 
 ## REST API
 
-Interactive docs: `/swagger-ui.html` (enabled locally). Errors always use one JSON shape:
-`{ status, code, message, path, fieldErrors?, errorId? }`. Clients get no stack traces or SQL.
-
-| Method & path | Access | Purpose |
-|---|---|---|
-| `GET /api/auth/csrf` | public | CSRF token (also set as `XSRF-TOKEN` cookie) |
-| `POST /api/auth/register` | public | Create a student account and sign in |
-| `POST /api/auth/login` | public | Sign in (rate-limited, generic errors) |
-| `POST /api/auth/logout` | user | End the session |
-| `GET /api/auth/me` · `PUT /api/auth/me` | user | Current user · update name |
-| `POST /api/auth/password/change` | user | Change password (signs out other sessions) |
-| `POST /api/auth/password/forgot` · `POST /api/auth/password/reset` | public | Email-based reset (only when SMTP is configured) |
-| `GET /api/config` | public | Booking rules, server date/time, time zone, default hours |
-| `GET /api/amenities` | public | All amenities |
-| `GET /api/rooms` | public | Search: `q, groupSize, amenities, date, startTime, duration, availableOnly, sort, page, size` |
-| `GET /api/rooms/{id}` · `GET /api/rooms/{id}/availability?date=` | public | Details · slot grid for a date |
-| `GET /api/images/{id}` | public | Uploaded room photo |
-| `POST /api/bookings` | student | Book (header `Idempotency-Key` recommended). 201 created / 200 replay / 409 conflict |
-| `GET /api/bookings/my?scope=upcoming\|past\|cancelled` · `GET /api/bookings/my/summary` | student | Own bookings · counts + next booking |
-| `GET /api/bookings/{id}` · `POST /api/bookings/{id}/cancel` | owner (or admin for GET) | Details · cancel before the deadline |
-| `GET/POST /api/admin/rooms` · `GET/PUT/DELETE /api/admin/rooms/{id}` | admin | Room management (delete only if never booked) |
-| `PATCH /api/admin/rooms/{id}/status` | admin | Activate/deactivate, optionally cancelling future bookings |
-| `GET/PUT /api/admin/rooms/{id}/hours` | admin | Room-specific or default hours |
-| `POST /api/admin/uploads/images` | admin | Upload JPEG/PNG/WebP (≤ 2 MB, type checked from bytes) |
-| `GET /api/admin/bookings` · `GET /api/admin/bookings/{id}` · `POST /api/admin/bookings/{id}/cancel` | admin | Search, view history, cancel with reason |
-| `GET/PUT /api/admin/schedule/settings` · `GET/PUT /api/admin/schedule/hours` | admin | Booking rules · facility hours |
-| `GET/POST /api/admin/schedule/blocks` · `DELETE /api/admin/schedule/blocks/{id}` | admin | Maintenance/event blocks |
-| `GET /api/admin/users` · `PATCH /api/admin/users/{id}/status` | admin | List users · suspend/reactivate |
-| `GET /api/admin/stats` | admin | Dashboard metrics |
-| `GET /actuator/health` | public | Health check |
+The full endpoint list (access rules, parameters and status codes) is in [docs/API.md](docs/API.md). Swagger UI is
+available locally at `/swagger-ui.html`. Every error uses one JSON shape: `{ status, code, message, path, fieldErrors?, errorId? }`.
 
 ---
 
@@ -373,6 +306,9 @@ frontend/
   src/features/*     landing, auth, rooms, bookings, student-dashboard, admin
   src/lib            API client, time + booking helpers       src/services   typed API calls
   src/schemas        Zod form schemas        src/types        API types      src/test   test utilities
+docs/                DEPLOYMENT.md (free hosting guide), API.md (endpoint reference)
+scripts/             run-backend.ps1 / .sh (start the API from .env), live-race-test.py
+.github/workflows/   ci.yml (tests on every push), keep-alive.yml (keeps the free API awake)
 docker-compose.yml   local MySQL (+ optional API container)
 render.yaml          Render blueprint (free API hosting)
 ```

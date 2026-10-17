@@ -8,7 +8,7 @@
       "source": "/api/:path*",
       "destination": "https://YOUR-API-SERVICE.onrender.com/api/:path*"
     },
-    { "source": "/((?!assets/).*)", "destination": "/index.html" }
+    { "source": "/((?!assets/|favicon\.svg).*)", "destination": "/index.html" }
   ],
   "headers": [
     {
